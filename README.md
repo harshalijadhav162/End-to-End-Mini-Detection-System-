@@ -94,4 +94,3 @@ Beyond just drawing boxes, the system understands context:
 
 ## 📜 License
 Internal use only. Part of the End-to-End Mini Detection System project.
-
