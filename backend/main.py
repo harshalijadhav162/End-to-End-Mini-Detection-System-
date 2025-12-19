@@ -1,6 +1,8 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-import random
+from ultralytics import YOLO
+from PIL import Image
+import io
 import time
 from typing import List, Dict
 
@@ -9,64 +11,82 @@ app = FastAPI(title="Mini Detection System API")
 # Configure CORS to allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the exact frontend origin
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mock classes for detection
-CLASSES = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light"]
-
-def get_mock_prediction() -> Dict:
-    """Generates a random mock prediction."""
-    detected_class = random.choice(CLASSES)
-    confidence = round(random.uniform(0.70, 0.99), 2)
-    # Mock bounding box [x, y, width, height]
-    bbox = [
-        random.randint(0, 200),
-        random.randint(0, 200),
-        random.randint(50, 300),
-        random.randint(50, 300)
-    ]
-    return {
-        "label": detected_class,
-        "confidence": confidence,
-        "box": bbox
-    }
+# Load YOLOv8 model (Nano version is fastest/lightest)
+try:
+    print("Loading AI model...")
+    model = YOLO("yolov8n.pt")
+    HAS_MODEL = True
+except Exception as e:
+    print(f"Error loading model: {e}")
+    HAS_MODEL = False
 
 @app.get("/")
 async def root():
-    return {"message": "Mini Detection System API is running"}
+    return {"message": "Mini Detection System API is running", "model_loaded": HAS_MODEL}
 
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
-    # Simulate processing delay for realism
-    time.sleep(1.5)
+    if not HAS_MODEL:
+        return {"error": "AI model not loaded", "message": "Backend is running in mock mode fallback"}
+
+    # Read image contents
+    contents = await file.read()
+    image = Image.open(io.BytesIO(contents))
     
-    # In a real app, we would process 'file.file' here.
-    # For this mock, we just return random results.
+    # Run YOLOv8 inference
+    # We specify task='detect' and project/name just in case, but simple call is fine
+    results = model(image)
     
-    # Generate 1 to 5 random detections for more density
-    detections = [get_mock_prediction() for _ in range(random.randint(1, 5))]
+    detections = []
+    # results[0] contains the result for the single image processed
+    res = results[0]
     
-    # Generate "AI Context"
+    for box in res.boxes:
+        # Get coordinates in xyxy format (top-left, bottom-right)
+        coords = box.xyxy[0].tolist() 
+        x1, y1, x2, y2 = coords
+        
+        # Calculate width and height
+        w = x2 - x1
+        h = y2 - y1
+        
+        # Get label and confidence
+        label_idx = int(box.cls[0])
+        label = model.names[label_idx]
+        confidence = float(box.conf[0])
+        
+        detections.append({
+            "label": label,
+            "confidence": confidence,
+            "box": [x1, y1, w, h] # Top-left X, Top-left Y, Width, Height
+        })
+    
+    # Generate "AI Context" based on real detections
     unique_labels = list(set([d["label"] for d in detections]))
     count = len(detections)
     
-    # Simple mock logic for "Scene Analysis"
-    if "person" in unique_labels and "car" in unique_labels:
+    # Scene Analysis Logic
+    if "person" in unique_labels and ("car" in unique_labels or "bicycle" in unique_labels or "motorcycle" in unique_labels):
         scene_type = "Urban Street / Traffic"
-        summary = f"Detected {count} objects. High likelihood of pedestrian activity near vehicles. Caution advised."
+        summary = f"Detected {count} objects. High likelihood of pedestrian activity near vehicles. Caution advised in this sector."
     elif "person" in unique_labels:
         scene_type = "Human Activity"
-        summary = f"Detected {count} individuals provided. Focus on personal safety monitoring."
-    elif "car" in unique_labels or "truck" in unique_labels:
+        summary = f"Detected {count} individuals. Primary focus on personal interactions and safety monitoring."
+    elif "car" in unique_labels or "truck" in unique_labels or "bus" in unique_labels:
         scene_type = "Vehicle Transport"
-        summary = f"Transport logistics detected. {count} vehicles identified in frame."
+        summary = f"Transport logistics detected. {count} vehicles identified. Optimal for traffic flow analysis."
+    elif count > 0:
+        scene_type = "Object Identification"
+        summary = f"Analysis complete. {count} distinct objects ({', '.join(unique_labels[:3])}...) identified in the current sector."
     else:
-        scene_type = "General Object Detection"
-        summary = f"Analysis complete. {count} distinct objects identified in the current sector."
+        scene_type = "Empty Scene"
+        summary = "No significant objects detected in the current visual field. System remaining in standby."
 
     return {
         "filename": file.filename,
