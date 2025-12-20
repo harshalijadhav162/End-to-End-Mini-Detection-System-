@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Upload,
   X,
@@ -45,7 +45,28 @@ export default function Home() {
   const [isCameraMode, setIsCameraMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // API URL logic
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // Real Health Check
+  const checkBackend = async () => {
+    try {
+      const resp = await fetch(API_URL);
+      if (resp.ok) setBackendStatus("online");
+      else setBackendStatus("offline");
+    } catch {
+      setBackendStatus("offline");
+    }
+  };
+
+  useEffect(() => {
+    checkBackend();
+    const interval = setInterval(checkBackend, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 3D Tilt Effect Logic
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -85,7 +106,7 @@ export default function Home() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:8000/detect", {
+      const response = await fetch(`${API_URL}/detect`, {
         method: "POST",
         body: formData,
       });
@@ -397,9 +418,9 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-gray-500 uppercase">Backend</span>
-                <span className="text-sm font-mono text-green-400 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  Online
+                <span className={`text-sm font-mono flex items-center gap-2 ${backendStatus === 'online' ? 'text-green-400' : backendStatus === 'offline' ? 'text-red-400' : 'text-yellow-400'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'online' ? 'bg-green-500 animate-pulse' : backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-bounce'}`} />
+                  {backendStatus.toUpperCase()}
                 </span>
               </div>
               <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex flex-col gap-1">
