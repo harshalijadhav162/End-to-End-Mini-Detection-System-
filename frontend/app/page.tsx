@@ -48,16 +48,23 @@ export default function Home() {
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // API URL logic
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  // API URL logic - trimmed and sanitized
+  const rawUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = rawUrl.replace(/\/$/, "").trim();
 
   // Real Health Check
   const checkBackend = async () => {
     try {
+      console.log("Checking backend at:", API_URL);
       const resp = await fetch(API_URL);
-      if (resp.ok) setBackendStatus("online");
-      else setBackendStatus("offline");
-    } catch {
+      if (resp.ok) {
+        setBackendStatus("online");
+      } else {
+        console.warn("Backend responded with error:", resp.status);
+        setBackendStatus("offline");
+      }
+    } catch (err) {
+      console.error("Connectivity error:", err);
       setBackendStatus("offline");
     }
   };
