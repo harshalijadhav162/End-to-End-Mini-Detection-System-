@@ -429,6 +429,11 @@ export default function Home() {
                   <span className={`w-1.5 h-1.5 rounded-full ${backendStatus === 'online' ? 'bg-green-500 animate-pulse' : backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-bounce'}`} />
                   {backendStatus.toUpperCase()}
                 </span>
+                {backendStatus === 'offline' && (
+                  <span className="text-[10px] text-gray-600 truncate max-w-full" title={API_URL}>
+                    Target: {API_URL}
+                  </span>
+                )}
               </div>
               <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-gray-500 uppercase">Latency</span>
