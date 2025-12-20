@@ -48,9 +48,8 @@ export default function Home() {
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // API URL logic - trimmed and sanitized
-  const rawUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const API_URL = rawUrl.replace(/\/$/, "").trim();
+  // API URL logic - Using hardcoded Render URL for production stability
+  const API_URL = "https://end-to-end-mini-detection-system.onrender.com";
 
   // Real Health Check
   const checkBackend = async () => {
